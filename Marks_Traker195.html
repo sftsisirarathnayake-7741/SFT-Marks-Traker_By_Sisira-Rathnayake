@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SFT Marks Tracker - Multi-User Portal</title>
+
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Chart.js & jsPDF Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- FontAwesome Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#f0f7ff',
+            100: '#e0effe',
+            500: '#0284c7',
+            800: '#075985',
+            900: '#0c4a6e',
+          }
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  .grade-A { color: #15803d; font-weight: 700; }
+  .grade-B { color: #1d4ed8; font-weight: 700; }
+  .grade-C { color: #0f766e; font-weight: 700; }
+  .grade-S { color: #c2410c; font-weight: 700; }
+  .grade-F { color: #b91c1c; font-weight: 700; }
+</style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-12">
+
+<!-- Login Modal -->
+<div id="loginModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-slate-200">
+    <div class="text-center mb-6">
+      <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-brand-500">
+        <i class="fa-solid fa-user-shield text-3xl"></i>
+      </div>
+      <h2 class="text-xl font-bold text-slate-800">SFT Portal Login</h2>
+      <p class="text-xs text-slate-500 mt-1">Please select your account and log in</p>
+    </div>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Select User Account</label>
+        <select id="loginRole" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+  	<option value="Oshani">Data Entry Operator 1 (Oshani)</option>
+ 	 <option value="Thrushi">Data Entry Operator 2 (Thrushi)</option>
+ 	 <option value="Navodya">Data Entry Operator 3 (Navodya)</option>
+ 	 <option value="Kumara">Data Entry Operator 4 (Kumara)</option>
+ 	 <option value="Sisira">Data Entry Operator 5 (Sisira)</option>
+ 	 <option value="admin">Main Admin Portal</option>
+	</select>  
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Passcode / Password</label>
+        <input type="password" id="loginPass" placeholder="Enter Password" onkeydown="if(event.key==='Enter')attemptLogin()" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500">
+      </div>
+
+      <button id="loginBtn" onclick="attemptLogin()" class="w-full bg-brand-500 hover:bg-brand-800 text-white font-bold py-3 rounded-xl shadow-lg transition text-sm">
+        Log In to Panel
+      </button>
+
+      <div id="loginError" class="hidden text-center text-xs text-rose-600 font-bold mt-2">
+        Invalid Passcode or Password!
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top Navigation Bar -->
+<header class="bg-brand-900 text-white shadow-lg sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+    <div class="flex items-center space-x-3">
+      <i class="fa-solid fa-chart-line text-2xl text-cyan-400"></i>
+      <div>
+        <h1 class="text-xl font-bold tracking-wide">SFT Marks Tracker</h1>
+        <p id="userRoleBadge" class="text-[10px] text-cyan-300 font-semibold uppercase tracking-wider">Marking Panel Mode</p>
+      </div>
+    </div>
+    
+    <!-- Sync & User Controls -->
+    <div class="flex items-center gap-3">
+      <div id="syncBadge" class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="syncStatusText">Loading...</span>
+      </div>
+      <button onclick="syncToCloud(true)" class="bg-brand-800 hover:bg-brand-500 text-xs px-3 py-1.5 rounded-lg border border-brand-500 transition shadow">
+        <i class="fa-solid fa-rotate"></i> Sync Data
+      </button>
+      <button onclick="logout()" class="bg-rose-600 hover:bg-rose-700 text-xs px-3 py-1.5 rounded-lg font-bold transition shadow">
+        <i class="fa-solid fa-right-from-bracket"></i> Exit
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-7xl mx-auto px-4 mt-6 space-y-6">
+
+  <!-- Branch Selector Header -->
+  <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="p-3 bg-brand-50 rounded-xl text-brand-500">
+        <i class="fa-solid fa-building-columns text-xl"></i>
+      </div>
+      <div>
+        <h2 class="text-sm font-semibold text-slate-500 uppercase">Active Center</h2>
+        <p class="text-lg font-bold text-slate-800"><span class="branchLabel">Matara</span> Branch</p>
+      </div>
+    </div>
+    
+    <div class="w-full sm:w-auto">
+      <select id="classBranch" onchange="switchBranch()" class="w-full sm:w-64 p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <option value="Matara">Matara Class</option>
+        <option value="Tangalle">Tangalle Class</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Entry Form Section -->
+    <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-user-plus text-brand-500"></i> Data Entry (<span id="activeOperatorName">Operator</span>)
+        </h2>
+        <div id="lockStatus" class="text-xs font-bold px-3 py-1 rounded-full"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Student ID</label>
+          <input type="text" id="studentId" placeholder="e.g. ST001" oninput="autoFillDetails()" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Student Name</label>
+          <input type="text" id="studentName" placeholder="Full Name" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Mobile Number</label>
+          <input type="tel" id="studentMobile" placeholder="e.g. 0712345678" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">School</label>
+          <input type="text" id="studentSchool" placeholder="e.g. Rahula College, Matara" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Target Test</label>
+          <select id="week" onchange="onWeekChange()" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+            <script>
+              for(let i=1; i<=100; i++) {
+                document.write(`<option value="Test ${i}">Test ${i}</option>`);
+              }
+            </script>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Marks Score</label>
+          <input type="number" id="marks" placeholder="Leave empty if Absent" min="0" max="100" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+      </div>
+
+      <div class="mt-5 flex flex-wrap gap-2 justify-between items-center pt-3 border-t border-slate-100">
+        <button id="addBtn" onclick="addMarks()" class="bg-brand-500 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-lg shadow-md transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="fa-solid fa-floppy-disk"></i> Save to <span id="addBtnTest">Test 1</span>
+        </button>
+
+        <!-- Admin Control Locks (only the admin sees these; the server also refuses markers) -->
+        <div id="adminLockControls" class="hidden flex flex-wrap items-center gap-2">
+          <button onclick="toggleLock(true)" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow">
+            <i class="fa-solid fa-lock"></i> Lock Test
+          </button>
+          <button onclick="toggleLock(false)" class="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow">
+            <i class="fa-solid fa-lock-open"></i> Unlock
+          </button>
+          <button onclick="lockAllBefore()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow">
+            <i class="fa-solid fa-lock"></i> Lock all old tests
+          </button>
+        </div>
+      </div>
+      <p id="lockedList" class="mt-2 text-[11px] font-semibold text-slate-500"></p>
+
+      <div id="message" class="hidden mt-3 p-3 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold flex items-center gap-2">
+        <i class="fa-solid fa-circle-check text-emerald-600"></i> Marks successfully saved!
+      </div>
+    </div>
+
+    <!-- Quick Search Widget & Session Counter -->
+    <div class="space-y-4">
+      <!-- Session Counter Widget for Operators -->
+      <div id="operatorStatsCard" class="bg-gradient-to-br from-brand-900 to-slate-900 text-white p-5 rounded-2xl shadow-sm border border-slate-800">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-cyan-300 uppercase">Current Entry Session</span>
+          <i class="fa-solid fa-list-check text-cyan-400"></i>
+        </div>
+        <p class="text-3xl font-extrabold text-white" id="sessionCounter">0</p>
+        <p class="text-xs text-slate-300 mt-1">Marks entered in this session</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-magnifying-glass text-brand-500"></i> Student Lookup
+        </h2>
+        <p class="text-xs text-slate-500 mb-4">Quick search student marks and rankings history across active tests.</p>
+        
+        <div class="space-y-3">
+          <input type="text" id="searchId" placeholder="Enter Student ID" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+          <div class="flex gap-2">
+            <button onclick="searchStudent()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-lg transition shadow">Search</button>
+            <button onclick="resetSearch()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-lg transition">Clear</button>
+          </div>
+        </div>
+        <div id="searchResults" class="mt-4 max-h-40 overflow-y-auto text-xs text-slate-600"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main Data Table -->
+  <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 overflow-hidden">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Consolidated Marks Sheet (<span class="branchLabel">Matara</span>)</h2>
+        <span id="recordCount" class="text-xs font-semibold text-brand-800 bg-brand-50 px-3 py-1 rounded-full border border-brand-100">Total Entries: 0</span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-bold text-slate-600">Filter Test:</label>
+        <select id="tableTestFilter" onchange="onTestFilterChange()" class="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="ALL">All Tests</option>
+          <script>
+            for(let i=1; i<=100; i++) {
+              document.write(`<option value="Test ${i}">Test ${i}</option>`);
+            }
+          </script>
+        </select>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto max-h-[500px] overflow-y-auto border border-slate-100 rounded-lg">
+      <table id="marksTable" class="w-full text-left text-sm relative">
+        <thead class="bg-slate-800 text-slate-100 text-xs uppercase sticky top-0 z-10">
+          <tr>
+            <th class="p-3">Student ID</th>
+            <th class="p-3">Student Name</th>
+            <th class="p-3">Mobile</th>
+            <th class="p-3">School</th>
+            <th class="p-3">Test</th>
+            <th class="p-3">Marks</th>
+            <th class="p-3">Grade</th>
+            <th class="p-3">Rank</th>
+            <th class="p-3 text-center adminOnlyCell">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-slate-700 font-medium"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Analytics Grid (Admin Only View) -->
+  <div id="adminAnalyticsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <h2 class="text-md font-bold text-slate-800 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-trophy text-amber-500"></i> Top Achievers (50+)
+      </h2>
+      <ul id="topStudents" class="space-y-2 text-xs max-h-64 overflow-y-auto pr-1"></ul>
+    </div>
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <h2 class="text-md font-bold text-slate-800 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-triangle-exclamation text-rose-500"></i> Weak Students (&lt;30)
+      </h2>
+      <ul id="weakStudents" class="space-y-2 text-xs max-h-64 overflow-y-auto pr-1"></ul>
+    </div>
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <h2 class="text-md font-bold text-slate-800 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-chart-pie text-brand-500"></i> Grade Distribution
+      </h2>
+      <div id="chartBox" class="relative max-w-xs mx-auto">
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+      <div>
+        <h2 class="text-md font-bold text-slate-800 mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-file-pdf text-rose-500"></i> Admin PDF Exporter
+        </h2>
+        <p class="text-xs text-slate-500 mb-4">Export filtered marks, top rankings, weak students, and statistical breakdown to PDF.</p>
+        
+        <label class="block text-xs font-bold text-slate-600 mb-1">Target Report Filter</label>
+        <select id="reportWeek" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="ALL">All Combined Tests</option>
+          <script>
+            for(let i=1; i<=100; i++) {
+              document.write(`<option value="Test ${i}">Test ${i}</option>`);
+            }
+          </script>
+        </select>
+      </div>
+
+      <button onclick="downloadPDF()" class="mt-4 w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 rounded-lg transition shadow flex items-center justify-center gap-2">
+        <i class="fa-solid fa-download"></i> Generate PDF Report
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Student Line Performance Charts -->
+  <div id="adminGraphsSection" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+      <i class="fa-solid fa-chart-line text-brand-500"></i> Individual Student Progress Tracker
+    </h2>
+    <div id="graphs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto p-2"></div>
+  </div>
+
+</div>
+
+<script>
+// Web App URL
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxwQqAKcOylRQd_WzcyEDmBuUDj4UCXMJhYk7o7tJ_xk5rhsads9Og0psssaOh6ubWP/exec";
+
+// Passwords are checked in Code.gs (not stored in this page)
+let authToken = localStorage.getItem("sftAuthToken") || null;
+let currentUserRole = authToken ? (localStorage.getItem("sftUserRole") || null) : null;
+if (!authToken) localStorage.removeItem("sftUserRole");
+let sessionCount = 0;
+
+let currentBranch = localStorage.getItem("sftCurrentBranch") || "Matara";
+let data = JSON.parse(localStorage.getItem(`sftMarksData_${currentBranch}`)) || [];
+let studentMap = JSON.parse(localStorage.getItem(`sftStudentMap_${currentBranch}`)) || {};
+let lockedWeeks = JSON.parse(localStorage.getItem(`sftLockedWeeks_${currentBranch}`)) || {};
+// Marks saved on this computer but not yet sent to the Sheet
+let pending = loadPending();
+let syncRunning = false;
+let syncAgain = false;
+
+let pieChart;
+let lineCharts = [];
+
+document.getElementById("classBranch").value = currentBranch;
+
+function checkAuthStatus() {
+  const modal = document.getElementById("loginModal");
+  if (!currentUserRole) {
+    modal.classList.remove("hidden");
+  } else {
+    modal.classList.add("hidden");
+    applyRolePermissions();
+  }
+}
+
+async function attemptLogin() {
+  const selectedUser = document.getElementById("loginRole").value;
+  const pass = document.getElementById("loginPass").value.trim();
+  const errorDiv = document.getElementById("loginError");
+  const btn = document.getElementById("loginBtn");
+
+  errorDiv.classList.add("hidden");
+  btn.disabled = true;
+  btn.innerText = "Checking...";
+
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "login", role: selectedUser, password: pass })
+    });
+    const result = await res.json();
+
+    if (result && result.status === "success") {
+      authToken = result.token;
+      currentUserRole = result.role;
+      localStorage.setItem("sftAuthToken", authToken);
+      localStorage.setItem("sftUserRole", currentUserRole);
+      document.getElementById("loginPass").value = "";
+      checkAuthStatus();
+      fetchFromCloud();
+    } else {
+      errorDiv.innerText = (result && result.message) || "Invalid Passcode or Password!";
+      errorDiv.classList.remove("hidden");
+    }
+  } catch (e) {
+    errorDiv.innerText = "Network error - check your internet and try again.";
+    errorDiv.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Log In to Panel";
+  }
+}
+
+function logout() {
+  localStorage.removeItem("sftAuthToken");
+  localStorage.removeItem("sftUserRole");
+  authToken = null;
+  currentUserRole = null;
+  location.reload();
+}
+
+// Login expired or password changed: show the login box again
+function handleAuthError(result) {
+  if (result && result.status === "auth") {
+    localStorage.removeItem("sftAuthToken");
+    localStorage.removeItem("sftUserRole");
+    authToken = null;
+    currentUserRole = null;
+    checkAuthStatus();
+    return true;
+  }
+  return false;
+}
+
+function applyRolePermissions() {
+  const badge = document.getElementById("userRoleBadge");
+  const activeOperatorSpan = document.getElementById("activeOperatorName");
+  const adminLocks = document.getElementById("adminLockControls");
+  const analyticsGrid = document.getElementById("adminAnalyticsGrid");
+  const graphsSection = document.getElementById("adminGraphsSection");
+
+  if (currentUserRole === "admin") {
+    badge.innerText = "Main Admin Portal";
+    activeOperatorSpan.innerText = "Admin Panel";
+    adminLocks.classList.remove("hidden");
+    analyticsGrid.classList.remove("hidden");
+    graphsSection.classList.remove("hidden");
+  } else {
+    badge.innerText = `Operator Mode (${currentUserRole})`;
+    activeOperatorSpan.innerText = currentUserRole;
+    adminLocks.classList.add("hidden");
+    analyticsGrid.classList.add("hidden");
+    graphsSection.classList.add("hidden");
+  }
+  renderAll();
+  checkWeekStatus();
+}
+
+function getLevel(mark) {
+  if (mark === "Absent" || mark === null || mark === undefined || mark === "") return "F";
+  mark = Number(mark);
+  if (mark >= 75) return "A";
+  if (mark >= 65) return "B";
+  if (mark >= 55) return "C";
+  if (mark >= 35) return "S";
+  return "F";
+}
+
+function parseTestNum(str) {
+  if (!str) return 0;
+  let num = parseInt(str.toString().replace(/[^0-9]/g, ''));
+  return isNaN(num) ? 0 : num;
+}
+
+function deduplicate(list) {
+  const map = new Map();
+  if (!Array.isArray(list)) return [];
+
+  list.forEach(item => {
+    if (!item || !item.id) return;
+    
+    const cleanId = String(item.id).trim().toUpperCase();
+    let cleanWeek = String(item.week || "").trim().replace("Week ", "Test ");
+
+    // Unique Primary Key (ID + Test)
+    const key = `${cleanId}_${cleanWeek}`;
+
+    map.set(key, {
+      id: cleanId,
+      name: String(item.name || "").trim(),
+      mobile: String(item.mobile || "").trim(),
+      school: String(item.school || "").trim(),
+      week: cleanWeek,
+      marks: item.marks,
+      grade: getLevel(item.marks),
+      rank: item.rank || ''
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function calculateRanks() {
+  if (!data || data.length === 0) return;
+
+  let weeks = [...new Set(data.map(item => item.week))];
+
+  weeks.forEach(w => {
+    data.filter(item => item.week === w && typeof item.marks !== "number").forEach(item => item.rank = '');
+    let weekData = data.filter(item => item.week === w && typeof item.marks === "number");
+    weekData.sort((a, b) => Number(b.marks) - Number(a.marks));
+
+    let currentRank = 1;
+    weekData.forEach((item, index) => {
+      if (index > 0 && Number(item.marks) < Number(weekData[index - 1].marks)) {
+        currentRank = index + 1;
+      }
+      item.rank = currentRank;
+    });
+  });
+}
+
+function setSyncStatus(isSyncing, text) {
+  const statusText = document.getElementById("syncStatusText");
+  if (!statusText) return;
+  if (isSyncing) {
+    statusText.innerText = text || "Saving...";
+  } else {
+    const n = pendingCount();
+    statusText.innerText = text || (n > 0 ? `${n} not synced - press Sync Data` : "All Synced");
+  }
+}
+
+function entryKey(item) {
+  return `${String(item.id).trim().toUpperCase()}_${String(item.week).trim()}`;
+}
+
+function loadPending() {
+  let p = JSON.parse(localStorage.getItem(`sftPending_${currentBranch}`) || "null") || { upserts: {}, deletes: {} };
+  // First time with this version: send this computer's old marks to the Sheet so nothing is lost
+  const migratedKey = `sftMigratedV2_${currentBranch}`;
+  if (!localStorage.getItem(migratedKey)) {
+    data.forEach(item => { if (item && item.id) p.upserts[entryKey(item)] = item; });
+    localStorage.setItem(migratedKey, "1");
+    localStorage.setItem(`sftPending_${currentBranch}`, JSON.stringify(p));
+  }
+  return p;
+}
+
+function pendingCount() {
+  return Object.keys(pending.upserts).length + Object.keys(pending.deletes).length;
+}
+
+// Sheet data + this computer's unsent changes
+function applyPending(list) {
+  const map = new Map(list.map(item => [entryKey(item), item]));
+  Object.keys(pending.deletes).forEach(k => map.delete(k));
+  Object.entries(pending.upserts).forEach(([k, item]) => {
+    // An empty name / mobile / school here never hides the one already in the Sheet
+    const base = map.get(k) || {};
+    map.set(k, Object.assign({}, item, {
+      name: item.name || base.name || "",
+      mobile: item.mobile || base.mobile || "",
+      school: item.school || base.school || ""
+    }));
+  });
+  return Array.from(map.values());
+}
+
+function rebuildStudentMap() {
+  studentMap = {};
+  data.forEach(item => {
+    if (item.id) {
+      studentMap[String(item.id).trim().toUpperCase()] = {
+        name: item.name || "", mobile: item.mobile || "", school: item.school || ""
+      };
+    }
+  });
+}
+
+function useCloudResult(result) {
+  if (result.role && result.role !== currentUserRole) {
+    currentUserRole = result.role;
+    localStorage.setItem("sftUserRole", currentUserRole);
+    applyRolePermissions();
+  }
+  data = deduplicate(applyPending(result.dataList || []));
+  lockedWeeks = result.lockedWeeks || {};
+  rebuildStudentMap();
+  calculateRanks();
+  saveLocal();
+  renderAll();
+  checkWeekStatus();
+}
+
+// Sends only new / changed / deleted marks. Marks already in the Sheet are kept.
+async function syncToCloud(manual) {
+  calculateRanks();
+  data = deduplicate(data);
+  saveLocal();
+
+  if (!SCRIPT_URL || SCRIPT_URL.includes("PASTE")) {
+    alert("කරුණාකර නිවැරදි SCRIPT_URL එක ඇතුළත් කරන්න!");
+    return;
+  }
+
+  // One sync at a time; changes made meanwhile are sent right after
+  if (syncRunning) { syncAgain = true; return; }
+  syncRunning = true;
+
+  setSyncStatus(true, "Saving to Sheet...");
+  const branchAtStart = currentBranch;
+
+  try {
+    const sentUpserts = Object.values(pending.upserts);
+    const sentDeleteKeys = Object.keys(pending.deletes);
+
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "syncData",
+        token: authToken,
+        branch: branchAtStart,
+        upserts: sentUpserts,
+        deletes: sentDeleteKeys.map(k => pending.deletes[k])
+      })
+    });
+    const result = await res.json();
+    if (handleAuthError(result)) { setSyncStatus(false, "Log in again, then Sync"); return; }
+    if (!result || result.status !== "success") throw new Error(result ? result.message : "Unknown error");
+
+    if (currentBranch === branchAtStart) {
+      // Remove only the changes that were sent (new ones made while saving stay pending)
+      sentUpserts.forEach(item => {
+        const k = entryKey(item);
+        if (pending.upserts[k] === item) delete pending.upserts[k];
+      });
+      sentDeleteKeys.forEach(k => delete pending.deletes[k]);
+      useCloudResult(result);
+    }
+
+    // Marks the server refused because the test is locked
+    if (result.rejected && result.rejected.length > 0) {
+      const lines = result.rejected.map(r => `${r.id} - ${r.week} (${r.marks})`).join("\n");
+      alert(`🔒 මෙම ලකුණු SAVE වුණේ නැහැ - Test එක Admin විසින් Lock කර ඇත:\n\n${lines}\n\nනිවැරදි Test එක තෝරා නැවත ඇතුළත් කරන්න.`);
+    }
+
+    setSyncStatus(false, "Saved Successfully!");
+    if (manual) alert(`Success! ${branchAtStart} branch data saved to Google Sheet (${(result.dataList || []).length} entries in the Sheet).`);
+    setTimeout(() => setSyncStatus(false), 2500);
+
+  } catch(e) {
+    console.error("Sync error:", e);
+    setSyncStatus(false, "Not Saved - press Sync Data again");
+    if (manual) alert("Network Error: Google Sheet එකට යැවීමට නොහැකි විය. අන්තර්ජාල සබඳතාවය පරීක්ෂා කරන්න.");
+  } finally {
+    syncRunning = false;
+    if (syncAgain) { syncAgain = false; syncToCloud(false); }
+  }
+}
+
+async function fetchFromCloud() {
+  if (!SCRIPT_URL || !authToken) return;
+
+  setSyncStatus(true, "Fetching Cloud Data...");
+  const branchAtStart = currentBranch;
+  try {
+    let res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "fetchData",
+        token: authToken,
+        branch: branchAtStart
+      })
+    });
+
+    let result = await res.json();
+    if (handleAuthError(result)) return;
+    if (result && result.status === "success" && currentBranch === branchAtStart) {
+      useCloudResult(result);
+    }
+  } catch(e) {
+    console.error("Fetch error", e);
+  } finally {
+    setSyncStatus(false);
+  }
+}
+
+function saveLocal() {
+  localStorage.setItem(`sftMarksData_${currentBranch}`, JSON.stringify(data));
+  localStorage.setItem(`sftStudentMap_${currentBranch}`, JSON.stringify(studentMap));
+  localStorage.setItem(`sftLockedWeeks_${currentBranch}`, JSON.stringify(lockedWeeks));
+  localStorage.setItem(`sftPending_${currentBranch}`, JSON.stringify(pending));
+}
+
+function switchBranch() {
+  currentBranch = document.getElementById("classBranch").value;
+  localStorage.setItem("sftCurrentBranch", currentBranch);
+  
+  data = JSON.parse(localStorage.getItem(`sftMarksData_${currentBranch}`)) || [];
+  data = deduplicate(data);
+  studentMap = JSON.parse(localStorage.getItem(`sftStudentMap_${currentBranch}`)) || {};
+  lockedWeeks = JSON.parse(localStorage.getItem(`sftLockedWeeks_${currentBranch}`)) || {};
+  pending = loadPending();
+
+  document.querySelectorAll(".branchLabel").forEach(el => el.innerText = currentBranch);
+  onWeekChange();
+  renderAll();
+  fetchFromCloud();
+}
+
+function autoFillDetails() {
+  const id = document.getElementById("studentId").value.trim().toUpperCase();
+  if(studentMap[id]) {
+    if (typeof studentMap[id] === "object") {
+      document.getElementById("studentName").value = studentMap[id].name || "";
+      document.getElementById("studentMobile").value = studentMap[id].mobile || "";
+      document.getElementById("studentSchool").value = studentMap[id].school || "";
+    } else {
+      document.getElementById("studentName").value = studentMap[id];
+      document.getElementById("studentMobile").value = "";
+      document.getElementById("studentSchool").value = "";
+    }
+  }
+}
+
+function clearInputs() {
+  document.getElementById("studentId").value = "";
+  document.getElementById("studentName").value = "";
+  document.getElementById("studentMobile").value = "";
+  document.getElementById("studentSchool").value = "";
+  document.getElementById("marks").value = "";
+}
+
+function onWeekChange() {
+  clearInputs();
+  checkWeekStatus();
+}
+
+// Locked tests show 🔒 in the Target Test list. Markers can't pick them at all.
+function refreshWeekOptions() {
+  const sel = document.getElementById("week");
+  const isAdmin = currentUserRole === "admin";
+  let maxLocked = 0;
+  Array.from(sel.options).forEach(opt => {
+    const locked = !!lockedWeeks[opt.value];
+    opt.text = locked ? `🔒 ${opt.value} (Locked)` : opt.value;
+    opt.disabled = locked && !isAdmin;
+    if (locked) maxLocked = Math.max(maxLocked, parseTestNum(opt.value));
+  });
+  // A marker sitting on a locked test is moved to the first open test after the locked ones
+  if (!isAdmin && sel.selectedOptions[0] && sel.selectedOptions[0].disabled) {
+    const next = Array.from(sel.options).find(o => !o.disabled && parseTestNum(o.value) > maxLocked)
+              || Array.from(sel.options).find(o => !o.disabled);
+    if (next) { sel.value = next.value; clearInputs(); }
+  }
+  const list = Object.keys(lockedWeeks).filter(k => lockedWeeks[k])
+    .sort((a, b) => parseTestNum(a) - parseTestNum(b));
+  document.getElementById("lockedList").innerHTML = list.length
+    ? `<i class="fa-solid fa-lock text-rose-500"></i> Locked (${currentBranch}): ${list.join(", ")}`
+    : "";
+}
+
+function checkWeekStatus() {
+  refreshWeekOptions();
+  const selectedWeek = document.getElementById("week").value;
+  const isLocked = !!lockedWeeks[selectedWeek];
+  const lockStatusDiv = document.getElementById("lockStatus");
+  const addBtn = document.getElementById("addBtn");
+  document.getElementById("addBtnTest").innerText = selectedWeek;
+
+  if (isLocked) {
+    lockStatusDiv.className = "text-xs font-bold px-3 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-300";
+    lockStatusDiv.innerHTML = `<i class="fa-solid fa-lock"></i> ${selectedWeek} Locked`;
+    addBtn.disabled = true;
+  } else {
+    lockStatusDiv.className = "text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300";
+    lockStatusDiv.innerHTML = `<i class="fa-solid fa-lock-open"></i> ${selectedWeek} Open`;
+    addBtn.disabled = false;
+  }
+}
+
+// Admin only - the lock is saved straight to the server (Code.gs checks it is the admin)
+async function sendLock(body, okMsg) {
+  if (currentUserRole !== "admin") { alert("Only the admin can lock or unlock tests."); return; }
+  setSyncStatus(true, "Saving lock...");
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(Object.assign({ action: "setLock", token: authToken, branch: currentBranch }, body))
+    });
+    const result = await res.json();
+    if (handleAuthError(result)) return;
+    if (!result || result.status !== "success") throw new Error(result ? result.message : "Error");
+    lockedWeeks = result.lockedWeeks || {};
+    saveLocal();
+    checkWeekStatus();
+    setSyncStatus(false, okMsg);
+    setTimeout(() => setSyncStatus(false), 2500);
+  } catch (e) {
+    setSyncStatus(false, "Lock NOT saved");
+    alert("Lock එක Save වුණේ නැහැ: " + e.message);
+  }
+}
+
+function toggleLock(status) {
+  const selectedWeek = document.getElementById("week").value;
+  if (!status && !confirm(`${selectedWeek} Unlock කරන්නද? එවිට Markers ලට එයට ලකුණු දැමිය හැක.`)) return;
+  sendLock({ week: selectedWeek, locked: status }, `${selectedWeek} ${status ? "Locked" : "Unlocked"}`);
+}
+
+// Locks Test 1 ... (selected test - 1). Use it each week: select this week's test and press it.
+function lockAllBefore() {
+  const n = parseTestNum(document.getElementById("week").value) - 1;
+  if (n < 1) { alert("Test 1 ට පෙර Test නැහැ."); return; }
+  if (!confirm(`Test 1 සිට Test ${n} දක්වා සියල්ල Lock කරන්නද?`)) return;
+  sendLock({ lockUpTo: n }, `Test 1 - Test ${n} Locked`);
+}
+
+function addMarks() {
+  const selectedWeek = document.getElementById("week").value;
+  if (lockedWeeks[selectedWeek]) {
+    alert(`${selectedWeek} is locked! Unlock it to make changes.`);
+    return;
+  }
+
+  const id = document.getElementById("studentId").value.trim().toUpperCase();
+  const name = document.getElementById("studentName").value.trim();
+  const mobile = document.getElementById("studentMobile").value.trim();
+  const school = document.getElementById("studentSchool").value.trim();
+  const marksInput = document.getElementById("marks").value.trim();
+
+  if (!id || !name) {
+    alert("Please fill both Student ID and Name.");
+    return;
+  }
+
+  let marksVal = "Absent";
+  if (marksInput !== "") {
+    let num = Number(marksInput);
+    if (num < 0 || num > 100 || isNaN(num)) {
+      alert("Please enter valid marks (0 - 100).");
+      return;
+    }
+    marksVal = num;
+  }
+
+  studentMap[id] = { name: name, mobile: mobile, school: school };
+  
+  data.forEach(item => { 
+    if (item.id && item.id.toString().trim().toUpperCase() === id) {
+      item.name = name;
+      item.mobile = mobile;
+      item.school = school;
+    }
+  });
+
+  const existingIndex = data.findIndex(item => 
+    item.id && item.id.toString().trim().toUpperCase() === id && item.week === selectedWeek
+  );
+
+  if (existingIndex !== -1) {
+    data[existingIndex].marks = marksVal;
+    data[existingIndex].name = name;
+    data[existingIndex].mobile = mobile;
+    data[existingIndex].school = school;
+    data[existingIndex].grade = getLevel(marksVal);
+  } else {
+    data.push({ id, name, mobile, school, week: selectedWeek, marks: marksVal, grade: getLevel(marksVal) });
+  }
+
+  // Remember this change until it reaches the Sheet
+  const entry = { id, name, mobile, school, week: selectedWeek, marks: marksVal };
+  pending.upserts[entryKey(entry)] = entry;
+  delete pending.deletes[entryKey(entry)];
+
+  sessionCount++;
+  document.getElementById("sessionCounter").innerText = sessionCount;
+
+  calculateRanks();
+  data = deduplicate(data);
+  saveLocal();
+  renderAll();
+  syncToCloud(false);
+  clearInputs();
+
+  const msg = document.getElementById("message");
+  msg.classList.remove("hidden");
+  setTimeout(() => msg.classList.add("hidden"), 2000);
+}
+
+function deleteMark(index) {
+  const item = data[index];
+  if (lockedWeeks[item.week]) {
+    alert(`${item.week} is locked! Unlock it to delete entries.`);
+    return;
+  }
+
+  if (confirm("Delete this entry?")) {
+    data.splice(index, 1);
+    const k = entryKey(item);
+    delete pending.upserts[k];
+    pending.deletes[k] = { id: item.id, week: item.week };
+    calculateRanks();
+    data = deduplicate(data);
+    saveLocal();
+    renderAll();
+    syncToCloud(false);
+  }
+}
+
+function searchStudent() {
+  const searchId = document.getElementById("searchId").value.trim().toUpperCase();
+  const resultsDiv = document.getElementById("searchResults");
+
+  if (!searchId) return;
+
+  calculateRanks();
+
+  const filtered = data.filter(item => item.id && item.id.toString().trim().toUpperCase() === searchId);
+  if (filtered.length === 0) {
+    resultsDiv.innerHTML = `<p class="text-rose-500 font-semibold">No records found for ${escapeHTML(searchId)}</p>`;
+    return;
+  }
+
+  filtered.sort((a,b) => parseTestNum(a.week) - parseTestNum(b.week));
+
+  let totalMarks = 0;
+  let validTestsCount = 0;
+  let studentMobile = filtered[0].mobile || (typeof studentMap[searchId] === "object" ? studentMap[searchId].mobile : "") || "N/A";
+
+  let html = `<div class="p-2 bg-slate-50 border border-slate-200 rounded-xl mb-3">
+    <p class="font-bold text-sm text-slate-800">${escapeHTML(filtered[0].name)}</p>
+    <p class="text-xs text-slate-500 font-semibold">ID: ${searchId} | Mobile: <span class="text-brand-800">${escapeHTML(studentMobile)}</span> | Total Tests: ${filtered.length}</p>
+    ${filtered[0].school ? `<p class="text-xs text-slate-500 font-semibold">School: <span class="text-brand-800">${escapeHTML(filtered[0].school)}</span></p>` : ""}
+  </div>
+  <div class="space-y-2 max-h-60 overflow-y-auto pr-1">`;
+
+  filtered.forEach(item => {
+    let markVal = item.marks === "Absent" ? "Absent" : `${item.marks} Marks`;
+    if (typeof item.marks === "number") {
+      totalMarks += item.marks;
+      validTestsCount++;
+    }
+
+    html += `
+      <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center text-xs shadow-sm">
+        <div>
+          <span class="font-bold text-brand-800">${item.week}</span>
+          <span class="ml-2 grade-${getLevel(item.marks)}">(${getLevel(item.marks)})</span>
+        </div>
+        <div class="text-right">
+          <span class="font-bold text-slate-800">${markVal}</span>
+          <span class="ml-2 text-slate-400 font-semibold">Rank: #${item.rank || 'N/A'}</span>
+        </div>
+      </div>`;
+  });
+
+  if (validTestsCount > 0) {
+    let avg = (totalMarks / validTestsCount).toFixed(1);
+    html += `<div class="mt-2 text-center p-2 bg-emerald-50 text-emerald-800 rounded-lg font-bold text-xs border border-emerald-200">
+      Average Score: ${avg} Marks
+    </div>`;
+  }
+
+  html += `</div>`;
+  resultsDiv.innerHTML = html;
+}
+
+function resetSearch() {
+  document.getElementById("searchId").value = "";
+  document.getElementById("searchResults").innerHTML = "";
+}
+
+function onTestFilterChange() {
+  renderTable();
+  if (currentUserRole === "admin") {
+    renderTopStudents();
+    renderWeakStudents();
+    renderPieChart();
+  }
+}
+
+function renderTable() {
+  calculateRanks();
+  const tbody = document.querySelector("#marksTable tbody");
+  const countSpan = document.getElementById("recordCount");
+  const selectedFilter = document.getElementById("tableTestFilter") ? document.getElementById("tableTestFilter").value : "ALL";
+  
+  tbody.innerHTML = "";
+
+  let filteredList = data;
+  if (selectedFilter !== "ALL") {
+    filteredList = data.filter(item => item.week === selectedFilter);
+  }
+
+  if(countSpan) countSpan.innerText = `Total Entries: ${filteredList.length}`;
+
+  const sortedData = [...filteredList].sort((a, b) => {
+    let weekA = parseTestNum(a.week);
+    let weekB = parseTestNum(b.week);
+    if (weekA !== weekB) return weekA - weekB;
+    return (a.rank || 0) - (b.rank || 0);
+  });
+
+  sortedData.forEach((student) => {
+    let level = getLevel(student.marks);
+    let originalIndex = data.indexOf(student);
+
+    const studentMobile = (studentMap[student.id] && studentMap[student.id].mobile) || student.mobile || "-";
+
+    const row = document.createElement("tr");
+    row.className = "hover:bg-slate-50 transition border-b border-slate-100";
+
+    let actionBtn = currentUserRole === "admin" 
+      ? `<td class="p-3 text-center"><button onclick="deleteMark(${originalIndex})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1 rounded text-xs font-bold transition">Delete</button></td>`
+      : `<td class="p-3 text-center text-xs text-slate-400 font-semibold"><i class="fa-solid fa-check text-emerald-500"></i> Saved</td>`;
+
+    row.innerHTML = `
+      <td class="p-3 font-semibold text-slate-800">${escapeHTML(student.id || 'N/A')}</td>
+      <td class="p-3">${escapeHTML(student.name)}</td>
+      <td class="p-3 font-semibold text-slate-600">${escapeHTML(studentMobile)}</td>
+      <td class="p-3">${escapeHTML(student.school || '-')}</td>
+      <td class="p-3 font-semibold text-brand-500">${student.week}</td>
+      <td class="p-3 font-bold">${student.marks}</td>
+      <td class="p-3 grade-${level}">${level}</td>
+      <td class="p-3 font-bold">${student.rank ? '#' + student.rank : '-'}</td>
+      ${actionBtn}
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function getSelectedTestMarks() {
+  const selectedFilter = document.getElementById("tableTestFilter") ? document.getElementById("tableTestFilter").value : "ALL";
+  
+  if (selectedFilter !== "ALL") {
+    return data.filter(item => item.week === selectedFilter).map(item => ({
+      id: item.id || 'N/A',
+      name: item.name,
+      mobile: item.mobile || '',
+      marks: item.marks
+    }));
+  }
+
+  const students = {};
+  data.forEach(item => {
+    const key = item.id ? item.id.toString().trim().toUpperCase() : item.name;
+    if (!students[key]) students[key] = [];
+    students[key].push(item);
+  });
+
+  const result = [];
+  Object.keys(students).forEach(key => {
+    let records = students[key];
+    records.sort((a,b) => parseTestNum(b.week) - parseTestNum(a.week));
+    result.push({ id: records[0].id || 'N/A', name: records[0].name, mobile: records[0].mobile || '', marks: records[0].marks });
+  });
+
+  return result;
+}
+
+function renderTopStudents() {
+  const list = document.getElementById("topStudents");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const filteredMarks = getSelectedTestMarks();
+  const top = filteredMarks.filter(s => typeof s.marks === "number" && s.marks >= 50).sort((a,b) => b.marks - a.marks);
+
+  if (top.length === 0) {
+    list.innerHTML = `<li class="text-slate-400 italic">No qualified achievers recorded.</li>`;
+    return;
+  }
+
+  top.forEach(s => {
+    const li = document.createElement("li");
+    li.className = "bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center";
+    li.innerHTML = `<span><strong>[${escapeHTML(s.id)}]</strong> ${escapeHTML(s.name)}</span> <span class="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">${s.marks} pts</span>`;
+    list.appendChild(li);
+  });
+}
+
+function renderWeakStudents() {
+  const list = document.getElementById("weakStudents");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const filteredMarks = getSelectedTestMarks();
+  const weak = filteredMarks.filter(s => typeof s.marks === "number" && s.marks < 30).sort((a,b) => a.marks - b.marks);
+
+  if (weak.length === 0) {
+    list.innerHTML = `<li class="text-slate-400 italic">No weak students under 30 marks.</li>`;
+    return;
+  }
+
+  weak.forEach(s => {
+    const li = document.createElement("li");
+    li.className = "bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center";
+    li.innerHTML = `<div class="flex flex-col">
+      <span><strong>[${escapeHTML(s.id)}]</strong> ${escapeHTML(s.name)}</span>
+      <span class="text-[10px] text-slate-500 font-semibold"><i class="fa-solid fa-phone text-slate-400"></i> ${escapeHTML(s.mobile || 'No Mobile')}</span>
+    </div> 
+    <span class="font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">${s.marks} pts</span>`;
+    list.appendChild(li);
+  });
+}
+
+function renderPieChart() {
+  const ctx = document.getElementById("pieChart");
+  if (!ctx) return;
+  
+  let countA = 0, countB = 0, countC = 0, countS = 0, countF = 0;
+  getSelectedTestMarks().forEach(s => {
+    let g = getLevel(s.marks);
+    if (g === "A") countA++;
+    else if (g === "B") countB++;
+    else if (g === "C") countC++;
+    else if (g === "S") countS++;
+    else countF++;
+  });
+
+  if (pieChart) pieChart.destroy();
+
+  pieChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["A (75+)", "B (65-74)", "C (55-64)", "S (35-54)", "F (<35)"],
+      datasets: [{
+        data: [countA, countB, countC, countS, countF],
+        backgroundColor: ["#15803d", "#1d4ed8", "#0f766e", "#c2410c", "#b91c1c"]
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } } }
+    }
+  });
+}
+
+function renderGraphs() {
+  const container = document.getElementById("graphs");
+  if (!container) return;
+  container.innerHTML = "";
+  lineCharts.forEach(c => c.destroy());
+  lineCharts = [];
+
+  const students = {};
+  data.forEach(item => {
+    const key = item.id ? `${item.id} - ${item.name}` : item.name;
+    if (!students[key]) students[key] = [];
+    students[key].push(item);
+  });
+
+  Object.keys(students).forEach((displayName, index) => {
+    students[displayName].sort((a,b) => parseTestNum(a.week) - parseTestNum(b.week));
+
+    const box = document.createElement("div");
+    box.className = "p-3 bg-slate-50 border border-slate-200 rounded-xl";
+    box.innerHTML = `<h3 class="text-xs font-bold text-slate-700 mb-2 truncate">${escapeHTML(displayName)}</h3><canvas id="studentChart${index}"></canvas>`;
+    container.appendChild(box);
+
+    const labels = students[displayName].map(x => x.week);
+    const marks = students[displayName].map(x => (x.marks === "Absent" ? 0 : x.marks));
+
+    const ctx = document.getElementById(`studentChart${index}`);
+    const chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Marks",
+          data: marks,
+          borderColor: "#0284c7",
+          backgroundColor: "rgba(2, 132, 199, 0.1)",
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: { y: { min: 0, max: 100 } },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    lineCharts.push(chart);
+  });
+}
+
+function renderAll() {
+  renderTable();
+  if (currentUserRole === "admin") {
+    renderTopStudents();
+    renderWeakStudents();
+    renderPieChart();
+    renderGraphs();
+  }
+}
+
+function escapeHTML(text) {
+  return String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function downloadPDF() {
+  if (data.length === 0) { alert("No data available to export."); return; }
+  calculateRanks();
+
+  const selectedReportWeek = document.getElementById("reportWeek").value;
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+
+  let filteredData = selectedReportWeek === "ALL" ? [...data] : data.filter(i => i.week === selectedReportWeek);
+  if (filteredData.length === 0) { alert(`No records found for ${selectedReportWeek}.`); return; }
+
+  // One section per test. The test number is printed at the top instead of a "Test" column.
+  const tests = [...new Set(filteredData.map(i => i.week))].sort((a, b) => parseTestNum(a) - parseTestNum(b));
+  const pageH = pdf.internal.pageSize.height;
+
+  function newSectionSpace(y) {
+    if (y + 40 > pageH) { pdf.addPage(); return 15; }
+    return y;
+  }
+
+  tests.forEach((test, ti) => {
+    if (ti > 0) pdf.addPage();
+    const testData = filteredData.filter(i => i.week === test);
+
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, 'bold');
+    pdf.text("A/L 2027 SFT Class", 14, 12);
+
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(`SFT Performance Report - ${currentBranch}`, 14, 19);
+    pdf.setFontSize(9);
+    pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 25);
+
+    // Test number at the top
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.setTextColor(2, 132, 199);
+    pdf.text(test, 196, 19, { align: "right" });
+    pdf.setTextColor(0, 0, 0);
+
+    // 1. Ranks
+    const rankList = testData
+      .slice()
+      .sort((a, b) => (a.rank || 9999) - (b.rank || 9999))
+      .map(item => [
+        item.rank ? `#${item.rank}` : '-',
+        item.id || 'N/A',
+        item.name,
+        item.school || '-',
+        item.marks,
+        getLevel(item.marks)
+      ]);
+
+    pdf.setFontSize(12);
+    pdf.text(`1. Student Ranks List - ${test}`, 14, 33);
+    pdf.autoTable({
+      startY: 36,
+      head: [["Rank", "ID", "Student Name", "School", "Marks", "Grade"]],
+      body: rankList,
+      theme: "striped"
+    });
+    let currentY = pdf.lastAutoTable.finalY + 10;
+
+    // 2. Grade summary
+    let counts = { A: 0, B: 0, C: 0, S: 0, F: 0 };
+    testData.forEach(item => {
+      let g = getLevel(item.marks);
+      if (counts[g] !== undefined) counts[g]++;
+    });
+    const gradeSummary = [
+      ["A (75+)", counts.A],
+      ["B (65-74)", counts.B],
+      ["C (55-64)", counts.C],
+      ["S (35-54)", counts.S],
+      ["F (<35)", counts.F]
+    ];
+
+    currentY = newSectionSpace(currentY);
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(`2. Grade Distribution Summary - ${test}`, 14, currentY);
+    pdf.autoTable({
+      startY: currentY + 3,
+      head: [["Grade Range", "Student Count"]],
+      body: gradeSummary,
+      theme: "grid",
+      headStyles: { fillColor: [2, 132, 199] }
+    });
+    currentY = pdf.lastAutoTable.finalY + 10;
+
+    // 3. Top achievers
+    const topAchievers = testData
+      .filter(item => typeof item.marks === "number" && item.marks >= 50)
+      .sort((a, b) => b.marks - a.marks)
+      .map(item => [item.id || 'N/A', item.name, item.school || '-', item.marks, getLevel(item.marks)]);
+
+    currentY = newSectionSpace(currentY);
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(`3. Top Achievers List (Above 50 Marks) - ${test}`, 14, currentY);
+    pdf.autoTable({
+      startY: currentY + 3,
+      head: [["ID", "Student Name", "School", "Marks", "Grade"]],
+      body: topAchievers.length > 0 ? topAchievers : [["-", "No students scored above 50", "-", "-", "-"]],
+      theme: "striped",
+      headStyles: { fillColor: [21, 128, 61] }
+    });
+    currentY = pdf.lastAutoTable.finalY + 10;
+
+    // 4. Weak students
+    const weakStudents = testData
+      .filter(item => typeof item.marks === "number" && item.marks < 30)
+      .sort((a, b) => a.marks - b.marks)
+      .map(item => [item.id || 'N/A', item.name, item.school || '-', item.marks, getLevel(item.marks)]);
+
+    currentY = newSectionSpace(currentY);
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(`4. Weak Students List (Under 30 Marks) - ${test}`, 14, currentY);
+    pdf.autoTable({
+      startY: currentY + 3,
+      head: [["ID", "Student Name", "School", "Marks", "Grade"]],
+      body: weakStudents.length > 0 ? weakStudents : [["-", "No weak students under 30 marks", "-", "-", "-"]],
+      theme: "striped",
+      headStyles: { fillColor: [185, 28, 28] }
+    });
+  });
+
+  const totalPages = pdf.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+
+    pdf.setTextColor(225, 225, 225);
+    pdf.setFontSize(32);
+    pdf.setFont(undefined, 'bold');
+    pdf.text("SFT Sisira Rathnayake", 105, 150, { angle: 45, align: "center" });
+
+    pdf.setTextColor(120, 120, 120);
+    pdf.setFontSize(9);
+    pdf.setFont(undefined, 'normal');
+    pdf.text("SFT Sisira Rathnayake", 14, 287);
+    pdf.text(`Page ${i} of ${totalPages}`, 196, 287, { align: "right" });
+  }
+
+  pdf.save(`SFT_${currentBranch}_Report.pdf`);
+}
+
+// Initial Run
+checkAuthStatus();
+checkWeekStatus();
+switchBranch();
+document.querySelectorAll(".branchLabel").forEach(el => el.innerText = currentBranch);
+</script>
+
+</body>
+</html>
